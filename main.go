@@ -1,36 +1,49 @@
 package main
 
 import (
-    "fmt"
-    "syscall"
-    "unsafe"
+	"fmt"
+	"html/template"
+	"net/http"
+	"strconv"
 )
 
-var (
-    user32           = syscall.NewLazyDLL("user32.dll")
-    procMessageBoxW  = user32.NewProc("MessageBoxW")
-)
+var tmpl = template.Must(template.New("form").Parse(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sum Calculator</title>
+</head>
+<body>
+    <h1>Sum Calculator</h1>
+    <form method="POST">
+        <label for="num1">Number 1:</label>
+        <input type="text" id="num1" name="num1"><br><br>
+        <label for="num2">Number 2:</label>
+        <input type="text" id="num2" name="num2"><br><br>
+        <input type="submit" value="Calculate Sum">
+    </form>
+    {{if .}}
+    <h2>Sum: {{.}}</h2>
+    {{end}}
+</body>
+</html>
+`))
 
-const (
-    MB_OK = 0x00000000
-)
-
-func MessageBox(hwnd uintptr, caption, title string, flags uint) int {
-    ret, _, _ := procMessageBoxW.Call(
-        hwnd,
-        uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(caption))),
-        uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(title))),
-        uintptr(flags))
-    return int(ret)
+func sumHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		num1, err1 := strconv.Atoi(r.FormValue("num1"))
+		num2, err2 := strconv.Atoi(r.FormValue("num2"))
+		if err1 == nil && err2 == nil {
+			sum := num1 + num2
+			tmpl.Execute(w, sum)
+			return
+		}
+	}
+	tmpl.Execute(w, nil)
 }
 
 func main() {
-    var num1, num2 int
-    fmt.Print("Enter the first number: ")
-    fmt.Scanln(&num1)
-    fmt.Print("Enter the second number: ")
-    fmt.Scanln(&num2)
-    sum := num1 + num2
-    sumStr := fmt.Sprintf("The sum of %d and %d is: %d", num1, num2, sum)
-    MessageBox(0, sumStr, "Sum Result", MB_OK)
+	http.HandleFunc("/", sumHandler)
+	fmt.Println("Server started at http://localhost:8080")
+	http.ListenAndServe(":8080", nil)
 }
